@@ -79,3 +79,58 @@
                         (unwrap! (as-max-len? (append prices price) u100) prices)
                         prices))
         prices))
+
+
+;; private functions
+;;
+(define-private (get-all-provider-prices)
+    (fold collect-provider-prices
+        (list u0 u1 u2 u3 u4 u5 u6 u7 u8 u9)
+        (list)))
+
+(define-private (find-min-price (prices (list 100 uint)))
+    (fold min-reducer prices u0))
+
+(define-private (min-reducer (price uint) (min-price uint))
+    (if (or (is-eq min-price u0) (< price min-price))
+        price
+        min-price))
+
+;; Public Functions
+(define-public (add-price-provider (provider principal))
+    (begin
+        (asserts! (is-contract-owner) ERR_NOT_AUTHORIZED)
+        (asserts! (< (var-get active-providers) MAX_PRICE_PROVIDERS) ERR_NOT_AUTHORIZED)
+        (let ((provider-count (var-get active-providers)))
+            (map-set price-providers provider true)
+            (map-set active-provider-list provider-count provider)
+            (var-set active-providers (+ provider-count u1))
+            (ok true))))
+
+(define-public (remove-price-provider (provider principal))
+    (begin
+        (asserts! (is-contract-owner) ERR_NOT_AUTHORIZED)
+        (let ((provider-count (var-get active-providers)))
+            (map-delete price-providers provider)
+            (map-delete provider-prices provider)
+            (map-delete provider-last-update provider)
+            (map-delete active-provider-list (- provider-count u1))
+            (var-set active-providers (- provider-count u1))
+            (ok true))))
+
+(define-public (submit-price (price uint))
+    (begin
+        (asserts! (is-authorized-provider tx-sender) ERR_NOT_AUTHORIZED)
+        (asserts! (>= price MIN_VALID_PRICE) ERR_PRICE_TOO_LOW)
+        (asserts! (<= price MAX_VALID_PRICE) ERR_PRICE_TOO_HIGH)
+
+        (map-set provider-prices tx-sender price)
+        (map-set provider-last-update tx-sender stacks-block-height)
+
+        (let ((prices (get-all-provider-prices)))
+            (asserts! (>= (len prices) MIN_PRICE_PROVIDERS) ERR_INSUFFICIENT_PROVIDERS)
+            (let ((median (find-min-price prices)))
+                (var-set current-price median)
+                (var-set last-update-block stacks-block-height)
+                (ok median)))))
+
