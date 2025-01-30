@@ -13,6 +13,10 @@
 (define-constant ERR_PRICE_TOO_LOW (err u103))
 (define-constant ERR_PRICE_TOO_HIGH (err u104))
 (define-constant ERR_PRICE_DEVIATION (err u105))
+;; Adding new error codes for unchecked scenarios
+(define-constant ERR_ZERO_PRICE (err u106))
+(define-constant ERR_INVALID_BLOCK (err u107))
+(define-constant ERR_PROVIDER_EXISTS (err u108))
 
 ;; traits
 ;;
@@ -134,3 +138,24 @@
                 (var-set last-update-block stacks-block-height)
                 (ok median)))))
 
+
+(define-read-only (get-current-price)
+    (begin
+        (asserts! (< (- stacks-block-height (var-get last-update-block)) MAX_PRICE_AGE) 
+                 ERR_STALE_PRICE)
+        (ok (var-get current-price))))
+
+(define-read-only (get-price-provider-count)
+    (var-get active-providers))
+
+(define-read-only (get-provider-status (provider principal))
+    (map-get? price-providers provider))
+
+(define-read-only (get-last-update-block)
+    (var-get last-update-block))
+
+
+(define-read-only (get-historical-price (block uint))
+    (match (map-get? historical-prices block)
+        price-data (ok price-data)
+        (err u106)))  ;; Error if no price exists for that block
